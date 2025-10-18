@@ -1,0 +1,412 @@
+---
+title: "Exercises_Exam"
+author: "Bienvenu_Uwayezu_101362"
+date: "2025-10-18"
+output: html_document
+---
+
+```{r}
+# Load required packages
+library(readxl)   # for reading Excel files
+library(dplyr)    # for data manipulation
+library(lubridate) # for date handling
+library(ggplot2)  # for plotting
+# Load necessary libraries
+library(dplyr)
+library(epiR)   # for relative risk calculations
+install.packages("epiR")
+```
+
+```{r}
+# Step 1: Read the dataset
+practice <- read_excel("DataFile.xls")
+
+```
+
+```{r}
+# Step 2: Inspect dataset structure
+str(practice)      # check column types
+summary(practice)  # basic summary of numeric and factor columns
+head(practice)     # view first rows
+
+```
+
+
+```{r}
+# Step 3: Check for missing values
+missing_summary <- sapply(practice, function(x) sum(is.na(x)))
+missing_summary
+```
+```{r}
+# Step 4: Check for duplicates
+duplicate_cases <- practice %>% filter(duplicated(`Case No.`))
+duplicate_cases
+```
+
+```{r}
+# Sex standardization
+practice$Sex <- toupper(practice$Sex)
+practice$Sex[practice$Sex %in% c("M", "MALE")] <- "Male"
+practice$Sex[practice$Sex %in% c("F", "FEMALE")] <- "Female"
+```
+
+```{r}
+# Death column standardization
+practice$Death <- toupper(practice$Death)
+practice$Death[practice$Death %in% c("Y", "YES")] <- "Yes"
+practice$Death[practice$Death %in% c("N", "NO")] <- "No"
+```
+
+```{r}
+# Outcome column standardization (example)
+practice$Outcome <- toupper(practice$Outcome)
+```
+
+```{r}
+# Step 6: Convert dates to Date format
+practice$`Date of onset` <- dmy(practice$`Date of onset`)
+practice$`Date of admission` <- dmy(practice$`Date of admission`)
+practice$`Date of discharge` <- dmy(practice$`Date of discharge`)
+```
+
+```{r}
+# Step 7: Check Age for invalid values
+summary(practice$Age)
+practice <- practice %>% filter(Age >= 0 & Age <= 120) # remove improbable ages
+```
+
+```{r}
+# Step 8: Check and clean District/Province
+practice$District <- toupper(trimws(practice$District))
+practice$Province <- toupper(trimws(practice$Province))
+```
+
+```{r}
+# Step 9: Create derived variables
+
+# Case Fatality Rate (CFR) calculation
+total_cases <- nrow(practice)
+total_deaths <- sum(practice$Death == "Yes", na.rm = TRUE)
+CFR <- (total_deaths / total_cases) * 100
+
+```
+
+```{r}
+# Recovery rate
+total_recovered <- sum(practice$Outcome == "RECOVERED", na.rm = TRUE)
+recovery_rate <- (total_recovered / total_cases) * 100
+```
+
+```{r}
+# Step 10: Save cleaned dataset
+write.csv(practice, "DataFile_cleaned.csv", row.names = FALSE)
+
+```
+
+```{r}
+# Print summary statistics
+cat("Total cases:", total_cases, "\n")
+cat("Total deaths:", total_deaths, "\n")
+cat("Case Fatality Rate (%):", round(CFR,2), "\n")
+cat("Total recovered:", total_recovered, "\n")
+cat("Recovery Rate (%):", round(recovery_rate,2), "\n")
+```
+
+
+
+
+
+```{r}
+# Step 1: Inspect unique values in Sex
+unique(practice$Sex)
+
+# Step 2: Standardize Sex column
+practice$Sex <- toupper(trimws(practice$Sex))  # Convert to uppercase and remove extra spaces
+practice$Sex[practice$Sex %in% c("M", "MALE")] <- "Male"
+practice$Sex[practice$Sex %in% c("F", "FEMALE")] <- "Female"
+
+# Step 3: Check results
+unique(practice$Sex)
+
+```
+
+
+
+
+
+```{r}
+library(dplyr)
+
+# Recode Age into AgeGroup
+practice <- practice %>%
+  mutate(AgeGroup = case_when(
+    Age < 5 ~ "Less than 5 years",
+    Age >= 5 & Age <= 14 ~ "5-14 years",
+    Age >= 15 & Age <= 24 ~ "15-24 years",
+    Age >= 25 & Age <= 49 ~ "25-49 years",
+    Age >= 50 ~ "50 years and above",
+    TRUE ~ NA_character_  # For missing or invalid ages
+  ))
+
+# Check the result
+table(practice$AgeGroup)
+
+```
+
+
+
+
+```{r}data-prep, message=FALSE, warning=FALSE, echo=TRUE}
+# Load required package
+library(dplyr)
+
+# Prepare cases by district
+cases_by_district <- practice %>%
+  filter(!is.na(district)) %>%        # Remove missing districts
+  group_by(district) %>%
+  dplyr::summarise(cases = n(), .groups = "drop") %>%  # avoid grouping issues
+  arrange(desc(cases))
+
+# Optional: view first few rows
+head(cases_by_district)
+
+```
+
+```{r}
+# Step 7: Generate and print graphs
+
+# Cases by District
+print(
+  ggplot(cases_by_district, aes(x=reorder(district, -cases), y=cases)) +
+    geom_bar(stat="identity", fill="steelblue") +
+    theme_minimal() +
+    labs(title="Cases by District", x="District", y="Number of Cases") +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+)
+
+```
+
+
+
+```{r}
+# Age Distribution
+print(
+  ggplot(age_distribution, aes(x=age_group, y=cases, fill=age_group)) +
+    geom_bar(stat="identity") +
+    theme_minimal() +
+    labs(title="Cases by Age Group", x="Age Group", y="Number of Cases") +
+    theme(legend.position = "none")
+)
+```
+
+
+```{r}
+# Gender Distribution
+print(
+  ggplot(gender_distribution, aes(x=sex, y=cases, fill=sex)) +
+    geom_bar(stat="identity") +
+    theme_minimal() +
+    labs(title="Cases by Gender", x="Gender", y="Number of Cases") +
+    theme(legend.position = "none")
+)
+```
+
+```{r}
+# Epidemic Curve
+print(
+  ggplot(epicurve, aes(x=date_of_onset, y=cases)) +
+    geom_line(color="firebrick", size=1.2) +
+    geom_point(color="firebrick") +
+    theme_minimal() +
+    labs(title="Epidemic Curve (Cases over Time)", x="Date of Onset", y="Number of Cases")
+)
+
+```
+
+
+
+
+
+
+
+
+5
+
+```{r}
+ggplot(practice, aes(x = `Date of onset`)) +
+  geom_histogram(binwidth = 3, fill = "steelblue", color = "black") +
+  labs(title = "Epidemic Curve by Date of Onset",
+       x = "Date of Onset",
+       y = "Number of Cases") +
+  theme_minimal()
+
+
+```
+
+
+
+
+
+
+
+6
+```{r}
+# Load necessary libraries
+practice <- practice %>%
+  mutate(
+    `Water source` = case_when(
+      grepl("river", `Water source`, ignore.case = TRUE) ~ "River",
+      grepl("tap", `Water source`, ignore.case = TRUE) ~ "Public Tap",
+      grepl("borehole", `Water source`, ignore.case = TRUE) ~ "Borehole",
+      TRUE ~ `Water source`
+    ),
+    `Water treatment` = case_when(
+      grepl("not", `Water treatment`, ignore.case = TRUE) ~ "Not Treated",
+      grepl("yes|treated", `Water treatment`, ignore.case = TRUE) ~ "Treated",
+      TRUE ~ `Water treatment`
+    ),
+    Sex = case_when(
+      grepl("male", Sex, ignore.case = TRUE) ~ "Male",
+      grepl("female", Sex, ignore.case = TRUE) ~ "Female",
+      TRUE ~ Sex
+    ),
+    AgeGroup = case_when(
+      Age < 15 ~ "<15",
+      Age >=15 & Age <= 40 ~ "15-40",
+      Age > 40 ~ ">40",
+      TRUE ~ "Unknown"
+    )
+  )
+```
+
+```{r}
+# Step 1: Water Source vs Death
+# -------------------------------
+table_water <- table(practice$`Water source`, practice$death_binary)
+prop.table(table_water, 1)  # Proportion of deaths per water source
+
+# Relative Risk: River vs Public Tap
+if(all(c("River","Public Tap") %in% rownames(table_water))){
+  rr_water <- epi.2by2(table_water[c("River","Public Tap"),], method="cohort.count", conf.level=0.95)
+  rr_water
+}
+```
+```{r}
+# -------------------------------
+# Step 2: Water Treatment vs Death
+# -------------------------------
+table_treatment <- table(practice$`Water treatment`, practice$death_binary)
+prop.table(table_treatment, 1)
+
+if(all(c("Not Treated","Treated") %in% rownames(table_treatment))){
+  rr_treatment <- epi.2by2(table_treatment[c("Not Treated","Treated"),], method="cohort.count", conf.level=0.95)
+  rr_treatment
+}
+```
+
+
+```{r}
+# -------------------------------
+# Step 3: Age Group vs Death
+# -------------------------------
+table_age <- table(practice$AgeGroup, practice$death_binary)
+prop.table(table_age, 1)
+
+if(all(c(">40","15-40") %in% rownames(table_age))){
+  rr_age <- epi.2by2(table_age[c(">40","15-40"),], method="cohort.count", conf.level=0.95)
+  rr_age
+}
+```
+
+
+```{r}
+# -------------------------------
+# Step 4: Sex vs Death
+# -------------------------------
+table_sex <- table(practice$Sex, practice$death_binary)
+prop.table(table_sex, 1)
+
+if(all(c("Male","Female") %in% rownames(table_sex))){
+  rr_sex <- epi.2by2(table_sex[c("Male","Female"),], method="cohort.count", conf.level=0.95)
+  rr_sex
+}
+```
+```{r}
+# -------------------------------
+# Step 5: Province vs Death
+# -------------------------------
+table_province <- table(practice$Province, practice$death_binary)
+prop.table(table_province, 1)
+
+if(all(c("Western","Southern") %in% rownames(table_province))){
+  rr_province <- epi.2by2(table_province[c("Western","Southern"),], method="cohort.count", conf.level=0.95)
+  rr_province
+}
+```
+
+```{r}
+# -------------------------------
+# Step 6: Save Tables
+# -------------------------------
+write.csv(as.data.frame(table_water), "Risk_WaterSource.csv", row.names=FALSE)
+write.csv(as.data.frame(table_treatment), "Risk_WaterTreatment.csv", row.names=FALSE)
+write.csv(as.data.frame(table_age), "Risk_AgeGroup.csv", row.names=FALSE)
+write.csv(as.data.frame(table_sex), "Risk_Sex.csv", row.names=FALSE)
+write.csv(as.data.frame(table_province), "Risk_Province.csv", row.names=FALSE)
+```
+
+
+
+
+
+
+
+
+
+##Recommendations to Improve Outbreak Response
+
+#Safe Water:
+
+Provide treated water and promote boiling or chlorination at home.
+
+Reduce use of untreated river water, especially in high-risk areas.
+
+#Early Case Detection:
+
+Identify and report cases quickly.
+
+Train health workers and community volunteers to recognize symptoms early.
+
+#Community Awareness:
+
+Educate people on hygiene, safe water, and early medical care.
+
+Focus on high-risk groups like older adults and males.
+
+#Healthcare Support:
+
+Ensure hospitals have enough medicine and rehydration supplies.
+
+Train staff to manage severe cases effectively.
+
+#Targeted Action:
+
+Focus efforts on provinces with most cases, like Western Province.
+
+Use maps and data to identify outbreak hotspots and send resources there.
+
+#Stronger Surveillance:
+
+Monitor trends regularly to catch outbreaks early.
+
+Integrate lab results with case reports for better accuracy.
+
+
+
+
+
+```{r}
+
+```
+
+
